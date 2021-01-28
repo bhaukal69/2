@@ -1,78 +1,71 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <cassert>
+import csv
 
-#include "ns3/core-module.h"
-#include "ns3/network-module.h"
-#include "ns3/csma-module.h"
-#include "ns3/applications-module.h"
-#include "ns3/internet-apps-module.h"
-#include "ns3/internet-module.h"
+data=[]
+with open("examples.csv") as csvfile:
+    reader = csv.reader(csvfile)
+    for row in reader:
+        data.append(row)
+        print(row)
+#     for row in csv.reader(csvFile):
+#         data.append(tuple(row))
 
-using namespace ns3;
+print(data)
 
-static void PingRtt(std::string context, Time rtt)
-{
-    std::cout << context << " " << rtt << std::endl;
-}
+def domain():
+    d=[]
+    for i in range(len(data[0])):
+        l=[]
+        for ele in data:
+            if ele[i] not in l:
+                l.append(ele[i])
+        d.append(l)
+    return d
 
-int main(int argc, char *argv[])
-{
+D=domain()
+print(D)
 
-    CommandLine cmd;
-    cmd.Parse(argc, argv);
+def consistent(h1,h2):
+    for x,y in zip(h1,h2):
+        if x!='?' and x!=y:
+            return False
+    return True
 
-    NodeContainer c;
-    c.Create(6);
+def candidate_elemination():
+    G = {('?',) * (len(data[0])-1)}
+    S = ['Φ'] * (len(data[0])-1)
+    count = 0
+    print("\nG[0]:", G)
+    print("\nS[0]:", S)
+    for item in data:
+        inp, res = item[:-1], item[-1]
+        count += 1
+        if res == "Yes":
+            i = 0
+            G = {g for g in G if consistent(g, inp)}
+            for s, x in zip(S,inp):
+                if s != x:
+                    if S[i] == 'Φ':
+                        S[i] = x
+                    else:
+                        S[i] = '?'
+#                     S[i]='?' if S[i]!='0' else x
+                i+=1
+        else:
+            Gprev=G.copy()
+            for g in Gprev:
+                for i in range(len(g)):
+                    if g[i]=='?':
+#                         print(inp, S)
+                        for val in D[i]:
+#                             print(val," ", inp[i], " ", S[i])
+                            if val!=inp[i] and val==S[i]:
+                                g_new=g[:i]+(val,)+g[i+1:]
+#                                 print("\n",g_new)
+                                G.add(g_new)
+                    else:
+                        G.add(g)
+                    G.difference_update([h for h in G if any([consistent(h,g1) for g1 in G if h!=g1])])
+        print("\nG[{}]:".format(count), G)
+        print("\nS[{}]:".format(count), S)
 
-    CsmaHelper csma;
-    csma.SetChannelAttribute("DataRate", DataRateValue(DataRate(10000)));
-    csma.SetChannelAttribute("Delay", TimeValue(MilliSeconds(0.2)));
-    NetDeviceContainer devs = csma.Install(c);
-
-    InternetStackHelper ipStack;
-    ipStack.Install(c);
-
-    Ipv4AddressHelper ip;
-    ip.SetBase("192.168.1.0", "255.255.255.0");
-    Ipv4InterfaceContainer addresses = ip.Assign(devs);
-
-    uint16_t port = 9; // Discard port (RFC 863)
-
-    OnOffHelper onoff("ns3::UdpSocketFactory",
-                      Address(InetSocketAddress(addresses.GetAddress(2), port)));
-    onoff.SetConstantRate(DataRate("500Mb/s"));
-
-    ApplicationContainer app = onoff.Install(c.Get(0));
-    app.Start(Seconds(6.0));
-    app.Stop(Seconds(10.0));
-
-
-    PacketSinkHelper sink("ns3::UdpSocketFactory",
-                          Address(InetSocketAddress(Ipv4Address::GetAny(), port)));
-    app = sink.Install(c.Get(2));
-    app.Start(Seconds(0.0));
-
-
-    V4PingHelper ping = V4PingHelper(addresses.GetAddress(2));
-    NodeContainer pingers;
-    pingers.Add(c.Get(0));
-    pingers.Add(c.Get(1));
-
-    ApplicationContainer apps;
-    apps = ping.Install(pingers);
-    apps.Start(Seconds(1.0));
-    apps.Stop(Seconds(5.0));
-
-
-    Config::Connect("/NodeList/*/ApplicationList/*/$ns3::V4Ping/Rtt",
-                    MakeCallback(&PingRtt));
-
-
-    AsciiTraceHelper ascii;
-    csma.EnableAsciiAll(ascii.CreateFileStream("ping1.tr"));
-
-    Simulator::Run();
-    Simulator::Destroy();
-}
+candidate_elemination()
